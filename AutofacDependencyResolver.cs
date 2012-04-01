@@ -7,8 +7,6 @@ namespace SignalR.Autofac
     using System.Linq.Expressions;
     using System.Reflection;
 
-    using SignalR.Infrastructure;
-
     using global::Autofac;
 
     /// <summary>
@@ -17,30 +15,34 @@ namespace SignalR.Autofac
     public class AutofacDependencyResolver : DefaultDependencyResolver
     {
         private readonly ILifetimeScope scope;
-        private readonly ContainerBuilder builder = new ContainerBuilder();
+        private ContainerBuilder builder = new ContainerBuilder();
 
-        public AutofacDependencyResolver(ILifetimeScope scope) : base()
+        public AutofacDependencyResolver(ILifetimeScope scope)
         {
             this.scope = scope;
             builder.Update(scope.ComponentRegistry);
+            builder = null;
         }
 
         public override void Register(Type serviceType, Func<object> activator)
         {
+            if (scope != null) builder = new ContainerBuilder();
+
             RegisterInContainer(this.builder, serviceType, activator);
-            if(scope != null)
-                builder.Update(scope.ComponentRegistry);
+
+            if (scope != null) builder.Update(scope.ComponentRegistry);
         }
 
         public override void Register(Type serviceType, IEnumerable<Func<object>> activators)
         {
+            if (scope != null) builder = new ContainerBuilder();
+
             foreach (var activator in activators)
             {
                 RegisterInContainer(this.builder, serviceType, activator);
             }
 
-            if (scope != null)
-                builder.Update(scope.ComponentRegistry);
+            if (scope != null) builder.Update(scope.ComponentRegistry);
         }
 
         public override object GetService(Type serviceType)
@@ -57,7 +59,7 @@ namespace SignalR.Autofac
 
         private static void RegisterGeneric<T>(ContainerBuilder builder, Type type, Func<object> obj)
         {
-            builder.Register(context => (T)obj()).As(type).InstancePerLifetimeScope();
+            builder.Register(context => (T)obj()).As(type).PreserveExistingDefaults().InstancePerLifetimeScope();
         }
 
         private static void RegisterInContainer(ContainerBuilder builder, Type type, Func<object> obj)
