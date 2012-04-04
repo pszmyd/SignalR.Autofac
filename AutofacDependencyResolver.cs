@@ -14,59 +14,93 @@ namespace SignalR.Autofac
     /// </summary>
     public class AutofacDependencyResolver : DefaultDependencyResolver
     {
-        private readonly ILifetimeScope scope;
-        private ContainerBuilder builder = new ContainerBuilder();
+        private ContainerBuilder _builder = new ContainerBuilder();
+        private readonly IDictionary<Type, Func<object>> _registrations = new Dictionary<Type, Func<object>>();
+
+        private bool dirty = true;
 
         public AutofacDependencyResolver(ILifetimeScope scope)
         {
-            this.scope = scope;
-            builder.Update(scope.ComponentRegistry);
-            builder = null;
+            Scope = scope;
+            FlushRegistryCache();
+        }
+
+        public ILifetimeScope Scope { get; set; }
+
+        private void FlushRegistryCache()
+        {
+            _builder = new ContainerBuilder();
+            foreach (var kv in _registrations)
+            {
+                RegisterInContainer(_builder, kv.Key, kv.Value, Scope);
+            }
+            _builder.Update(Scope.ComponentRegistry);
+            _registrations.Clear();
+            dirty = false;
         }
 
         public override void Register(Type serviceType, Func<object> activator)
         {
-            if (scope != null) builder = new ContainerBuilder();
+            if (Scope == null)
+                _registrations.Add(serviceType, activator);
+            else
+            {
+                if(dirty) this.FlushRegistryCache();
+                _builder = new ContainerBuilder();
+                RegisterInContainer(_builder, serviceType, activator, Scope);
+                _builder.Update(Scope.ComponentRegistry);
+            }
 
-            RegisterInContainer(this.builder, serviceType, activator);
-
-            if (scope != null) builder.Update(scope.ComponentRegistry);
         }
 
         public override void Register(Type serviceType, IEnumerable<Func<object>> activators)
         {
-            if (scope != null) builder = new ContainerBuilder();
-
-            foreach (var activator in activators)
+            if (Scope == null)
+                _registrations.Add(serviceType, activators.Last());
+            else
             {
-                RegisterInContainer(this.builder, serviceType, activator);
+                if (dirty) this.FlushRegistryCache();
+                _builder = new ContainerBuilder();
+                foreach (var activator in activators)
+                {
+                    RegisterInContainer(_builder, serviceType, activator, Scope);
+                }
+                _builder.Update(Scope.ComponentRegistry);
             }
-
-            if (scope != null) builder.Update(scope.ComponentRegistry);
         }
 
         public override object GetService(Type serviceType)
         {
+            Func<object> factory;
+            if (Scope == null) return _registrations.TryGetValue(serviceType, out factory) ? factory() : null;
+
+            if (dirty) this.FlushRegistryCache();
             object instance;
-            return scope.TryResolve(serviceType, out instance) ? instance : null;
+            return Scope.TryResolve(serviceType, out instance) ? instance : null;
         }
 
         public override IEnumerable<object> GetServices(Type serviceType)
         {
+            Func<object> factory;
+            if (Scope == null) return _registrations.TryGetValue(serviceType, out factory) ? new List<object> { factory() } : null;
+
+            if (dirty) this.FlushRegistryCache();
             object instance;
-            return scope.TryResolve(typeof(IEnumerable<>).MakeGenericType(serviceType), out instance) ? instance as IEnumerable<object> : null;
+            return Scope.TryResolve(typeof(IEnumerable<>).MakeGenericType(serviceType), out instance) ? instance as IEnumerable<object> : null;
         }
 
-        private static void RegisterGeneric<T>(ContainerBuilder builder, Type type, Func<object> obj)
+        private static void RegisterGeneric<T>(ContainerBuilder builder, Type type, Func<object> obj, ILifetimeScope scope)
         {
-            builder.Register(context => (T)obj()).As(type).PreserveExistingDefaults().InstancePerLifetimeScope();
+            builder.Register(context => (T)obj()).As(type).PreserveExistingDefaults().
+                InstancePerLifetimeScope().
+                InstancePerMatchingLifetimeScope("shell");
         }
 
-        private static void RegisterInContainer(ContainerBuilder builder, Type type, Func<object> obj)
+        private static void RegisterInContainer(ContainerBuilder builder, Type type, Func<object> obj, ILifetimeScope scope)
         {
             var method = typeof(AutofacDependencyResolver).GetMethod("RegisterGeneric", BindingFlags.Static | BindingFlags.NonPublic).MakeGenericMethod(type);
             var delegateType = Expression.GetActionType(method.GetParameters().Select(p => p.ParameterType).ToArray());
-            Delegate.CreateDelegate(delegateType, method).DynamicInvoke(builder, type, obj);
+            Delegate.CreateDelegate(delegateType, method).DynamicInvoke(builder, type, obj, scope);
         }
     }
 }
