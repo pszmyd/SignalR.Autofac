@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using Autofac.Core;
 using Autofac.Core.Activators.ProvidedInstance;
 using Autofac.Core.Lifetime;
@@ -32,20 +33,31 @@ namespace SignalR.Autofac
 		public override IEnumerable<object> GetServices(Type serviceType)
 		{
 			object result;
-			_lifetimeScope.TryResolve(serviceType.MakeArrayType(), out result);
+			_lifetimeScope.TryResolve(typeof(IEnumerable<>).MakeGenericType(serviceType), out result);
 			return (IEnumerable<object>)result;
 		}
 
-		IEnumerable<IComponentRegistration> IRegistrationSource.RegistrationsFor(Service service, Func<Service, IEnumerable<IComponentRegistration>> registrationAccessor)
+		public IEnumerable<IComponentRegistration> RegistrationsFor(Service service, Func<Service, IEnumerable<IComponentRegistration>> registrationAccessor)
 		{
-
 			var result = new IComponentRegistration[] { };
-			var serviceType = service as TypedService;
-			if (serviceType != null)
+			var typedService = service as TypedService;
+			if (typedService != null)
 			{
-				var instance = base.GetService(serviceType.ServiceType);
+				object instance;
+
+				var serviceType = typedService.ServiceType;
+				if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+				{
+					serviceType = serviceType.GetGenericArguments()[0];
+					instance = base.GetServices(serviceType);
+				}
+				else
+				{
+					instance = base.GetService(serviceType);
+				}
+
 				if (instance != null)
-				{					
+				{
 					result = new IComponentRegistration[]
 					         	{
 					         		new ComponentRegistration(
@@ -57,7 +69,7 @@ namespace SignalR.Autofac
 					         			new[] {service},
 					         			new Dictionary<string, object>())
 					         	};
-				}				
+				}
 			}
 
 			return result;
