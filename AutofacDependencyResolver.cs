@@ -8,76 +8,66 @@ using Autofac.Core.Registration;
 
 namespace SignalR.Autofac
 {
-	using global::Autofac;
+    using global::Autofac;
+    using global::Autofac.Builder;
 
     /// <summary>
     /// SingalR dependency resolver using Autofac container as backend.
     /// </summary>
     public class AutofacDependencyResolver : DefaultDependencyResolver, IRegistrationSource
     {
-		private readonly ILifetimeScope _lifetimeScope;
+        private readonly ILifetimeScope _lifetimeScope;
 
-		public AutofacDependencyResolver(ILifetimeScope lifetimeScope)
-		{
-			_lifetimeScope = lifetimeScope;
-			_lifetimeScope.ComponentRegistry.AddRegistrationSource(this);
-		}
+        public AutofacDependencyResolver(ILifetimeScope lifetimeScope)
+        {
+            _lifetimeScope = lifetimeScope;
+            _lifetimeScope.ComponentRegistry.AddRegistrationSource(this);
+        }
 
-		public override object GetService(Type serviceType)
-		{
-			object result;
-			_lifetimeScope.TryResolve(serviceType, out result);
-			return result;
-		}
+        public override object GetService(Type serviceType)
+        {
+            object result;
+            if (_lifetimeScope.TryResolve(serviceType, out result))
+            {
+                return result;
+            }
 
-		public override IEnumerable<object> GetServices(Type serviceType)
-		{
-			object result;
-			_lifetimeScope.TryResolve(typeof(IEnumerable<>).MakeGenericType(serviceType), out result);
-			return (IEnumerable<object>)result;
-		}
+            return null;
+        }
 
-		public IEnumerable<IComponentRegistration> RegistrationsFor(Service service, Func<Service, IEnumerable<IComponentRegistration>> registrationAccessor)
-		{
-			var result = new IComponentRegistration[] { };
-			var typedService = service as TypedService;
-			if (typedService != null)
-			{
-				object instance;
+        public override IEnumerable<object> GetServices(Type serviceType)
+        {
+            object result;
+            if (_lifetimeScope.TryResolve(typeof(IEnumerable<>).MakeGenericType(serviceType), out result))
+            {
+                return (IEnumerable<object>)result;
+            }
 
-				var serviceType = typedService.ServiceType;
-				if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(IEnumerable<>))
-				{
-					serviceType = serviceType.GetGenericArguments()[0];
-					instance = base.GetServices(serviceType);
-				}
-				else
-				{
-					instance = base.GetService(serviceType);
-				}
+            return Enumerable.Empty<object>();
+        }
 
-				if (instance != null)
-				{
-					result = new IComponentRegistration[]
-					         	{
-					         		new ComponentRegistration(
-					         			Guid.NewGuid(),
-					         			new ProvidedInstanceActivator(instance),
-					         			new CurrentScopeLifetime(), 
-					         			InstanceSharing.Shared,
-					         			InstanceOwnership.ExternallyOwned,
-					         			new[] {service},
-					         			new Dictionary<string, object>())
-					         	};
-				}
-			}
+        public IEnumerable<IComponentRegistration> RegistrationsFor(Service service, Func<Service, IEnumerable<IComponentRegistration>> registrationAccessor)
+        {
+            var typedService = service as TypedService;
+            if (typedService != null)
+            {
+                var instance = base.GetServices(typedService.ServiceType);
 
-			return result;
-		}
+                if (instance != null)
+                {
 
-		bool IRegistrationSource.IsAdapterForIndividualComponents
-		{
-			get { return false; }
-		}
+                    return instance.Select(i => RegistrationBuilder.ForDelegate(i.GetType(), (c, p) => i).As(typedService.ServiceType)
+                        .InstancePerMatchingLifetimeScope(_lifetimeScope.Tag)
+                        .CreateRegistration());
+                }
+            }
+
+            return Enumerable.Empty<IComponentRegistration>();
+        }
+
+        bool IRegistrationSource.IsAdapterForIndividualComponents
+        {
+            get { return false; }
+        }
     }
 }
