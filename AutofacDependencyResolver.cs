@@ -51,14 +51,15 @@ namespace SignalR.Autofac
             var typedService = service as TypedService;
             if (typedService != null)
             {
-                var instance = base.GetServices(typedService.ServiceType);
+                var instances = base.GetServices(typedService.ServiceType);
 
-                if (instance != null)
+                if (instances != null)
                 {
-
-                    return instance.Select(i => RegistrationBuilder.ForDelegate(i.GetType(), (c, p) => i).As(typedService.ServiceType)
-                        .InstancePerMatchingLifetimeScope(_lifetimeScope.Tag)
-                        .CreateRegistration());
+                    return instances
+                            .Select(i => RegistrationBuilder.ForDelegate(i.GetType(), (c, p) => i).As(typedService.ServiceType)
+                            .InstancePerMatchingLifetimeScope(_lifetimeScope.Tag)
+                            .PreserveExistingDefaults()
+                            .CreateRegistration());
                 }
             }
 
