@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Autofac.Core;
 using Autofac;
 using Autofac.Builder;
+using Autofac.Core;
+using Microsoft.AspNet.SignalR;
 
 namespace SignalR.Autofac
 {
