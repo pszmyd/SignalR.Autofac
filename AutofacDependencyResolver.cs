@@ -4,6 +4,7 @@ using System.Linq;
 using Autofac.Core;
 using Autofac;
 using Autofac.Builder;
+using Microsoft.AspNet.SignalR;
 
 namespace SignalR.Autofac
 {
