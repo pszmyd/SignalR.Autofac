@@ -11,7 +11,7 @@ namespace SignalR.Autofac
     /// <summary>
     /// SignalR dependency resolver using Autofac container as backend.
     /// </summary>
-    public class AutofacDependencyResolver : DefaultDependencyResolver, IRegistrationSource
+    public class AutofacDependencyResolver : DefaultDependencyResolver, IDependencyResolver, IRegistrationSource
     {
         private readonly ILifetimeScope _lifetimeScope;
 
