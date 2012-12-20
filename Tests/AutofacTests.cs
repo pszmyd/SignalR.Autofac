@@ -29,7 +29,7 @@ namespace SignalR.Autofac.Tests
 
             Assert.That(container, Is.Not.Null);
         }
-
+        
         [Test]
         public void DependenciesShouldGetResolvedWhenRegisteredFromModule()
         {
@@ -43,7 +43,7 @@ namespace SignalR.Autofac.Tests
             var scope = intermediateScope.BeginLifetimeScope("shell", builder =>
             {
                 var moduleIndex = intermediateScope.Resolve<IIndex<Type, IModule>>();
-                builder.RegisterModule(moduleIndex[typeof (TestModule)]);
+                builder.RegisterModule(moduleIndex[typeof(TestModule)]);
             });
 
             var connMgr = scope.Resolve<IConnectionManager>();
@@ -51,6 +51,24 @@ namespace SignalR.Autofac.Tests
             Assert.That(connMgr, Is.Not.Null);
 
             var container = scope.Resolve<IDependencyResolver>();
+
+            Assert.That(container, Is.Not.Null);
+        }
+
+        [Test]
+        public void DependenciesShouldGetResolvedInChildScope()
+        {
+            var rootBuilder = new ContainerBuilder();
+            rootBuilder.RegisterDependencyResolver().InstancePerMatchingLifetimeScope("shell");
+            var rootContainer = rootBuilder.Build();
+
+            var scope = rootContainer.BeginLifetimeScope("shell");
+            var workLifetime = scope.Resolve<ILifetimeScope>().BeginLifetimeScope("work");
+            var connMgr = workLifetime.Resolve<IConnectionManager>();
+
+            Assert.That(connMgr, Is.Not.Null);
+
+            var container = workLifetime.Resolve<IDependencyResolver>();
 
             Assert.That(container, Is.Not.Null);
         }
