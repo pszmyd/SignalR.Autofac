@@ -13,18 +13,37 @@ namespace SignalR.Autofac
     /// </summary>
     public class AutofacDependencyResolver : DefaultDependencyResolver, IDependencyResolver, IRegistrationSource
     {
-        private readonly ILifetimeScope _lifetimeScope;
+        private ILifetimeScope LifetimeScope { get; set; }
 
         public AutofacDependencyResolver(ILifetimeScope lifetimeScope)
         {
-            _lifetimeScope = lifetimeScope;
-            _lifetimeScope.ComponentRegistry.AddRegistrationSource(this);
+            LifetimeScope = lifetimeScope;
+            var currentRegistrationSource =
+                LifetimeScope.ComponentRegistry.Sources.FirstOrDefault(s => s.GetType() == GetType());
+            if (currentRegistrationSource != null)
+            {
+                ((AutofacDependencyResolver) currentRegistrationSource).LifetimeScope = lifetimeScope;
+            }
+            else
+            {
+                LifetimeScope.ComponentRegistry.AddRegistrationSource(this);
+            }
+        }
+
+        public AutofacDependencyResolver()
+        {
         }
 
         public override object GetService(Type serviceType)
         {
             object result;
-            if (_lifetimeScope.TryResolve(serviceType, out result))
+
+            if (LifetimeScope == null)
+            {
+                return base.GetService(serviceType);
+            }
+
+            if (LifetimeScope.TryResolve(serviceType, out result))
             {
                 return result;
             }
@@ -35,7 +54,13 @@ namespace SignalR.Autofac
         public override IEnumerable<object> GetServices(Type serviceType)
         {
             object result;
-            if (_lifetimeScope.TryResolve(typeof(IEnumerable<>).MakeGenericType(serviceType), out result))
+
+            if (LifetimeScope == null)
+            {
+                return base.GetServices(serviceType);
+            }
+
+            if (LifetimeScope.TryResolve(typeof(IEnumerable<>).MakeGenericType(serviceType), out result))
             {
                 return (IEnumerable<object>)result;
             }
@@ -54,7 +79,7 @@ namespace SignalR.Autofac
                 {
                     return instances
                             .Select(i => RegistrationBuilder.ForDelegate(i.GetType(), (c, p) => i).As(typedService.ServiceType)
-                            .InstancePerMatchingLifetimeScope(_lifetimeScope.Tag)
+                            .InstancePerLifetimeScope()
                             .PreserveExistingDefaults()
                             .CreateRegistration());
                 }

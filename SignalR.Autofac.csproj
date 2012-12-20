@@ -58,6 +58,7 @@
   <ItemGroup>
     <Compile Include="AutofacDependencyResolver.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RegistrationExtensions.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Scripts\jquery.signalR-0.5.2.js" />
